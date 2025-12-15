@@ -45,7 +45,7 @@ void setup() {
   digitalWrite(OC_ADJ,HIGH);
 // driver config
   // power supply voltage [V]
-  driver.voltage_power_supply = 12;
+  driver.voltage_power_supply = 24;
   driver.pwm_frequency = 20000;
   driver.init();
   // link driver
@@ -55,7 +55,7 @@ void setup() {
 
 
   // limiting motor current (provided resistance)
-   motor.voltage_limit = 5;   // Volts
+   motor.voltage_limit = 20;   // Volts
  
     // align voltage
   motor.voltage_sensor_align = 2;

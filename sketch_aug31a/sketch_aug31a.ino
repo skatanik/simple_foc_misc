@@ -21,6 +21,7 @@ float current_velocity;
 
 void setup() {
   // monitoring port
+  Serial.println("sensor ready");
   Serial.begin(9600);
   counter = 0;
 

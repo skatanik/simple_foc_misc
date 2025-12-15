@@ -1,15 +1,17 @@
 #include <SimpleFOC.h>
 #include <SimpleFOCDrivers.h>
 #include <encoders/mt6826/MagneticSensorMT6826.h>
+#include <ACANFD_STM32.h>
+
 
 #define   EN_GATE PB4
-#define   M_PWM PB6
+#define   M_PWM PB9 //b9
 #define   M_OC PC11
 #define   OC_ADJ PA15
 #define   IOUTA A0
 #define   IOUTB A1
 #define   IOUTC A2
-#define   OC_GAIN PB5
+#define   OC_GAIN PB7 //b7
 
 MagneticSensorMT6826 sensorMag = MagneticSensorMT6826(4);
 
@@ -43,6 +45,77 @@ long time_ms = 0;
   HardwareTimer* timer = new HardwareTimer(TIM3);
 
 void setup() {
+
+  _delay(1000);
+
+  Serial.print ("CPU frequency: ") ;
+  Serial.print (F_CPU) ;
+  Serial.println (" Hz") ;
+  Serial.print ("PCLK1 frequency: ") ;
+  Serial.print (HAL_RCC_GetPCLK1Freq ()) ;
+  Serial.println (" Hz") ;
+  Serial.print ("PCLK2 frequency: ") ;
+  Serial.print (HAL_RCC_GetPCLK2Freq ()) ;
+  Serial.println (" Hz") ;
+  Serial.print ("HCLK frequency: ") ;
+  Serial.print (HAL_RCC_GetHCLKFreq ()) ;
+  Serial.println (" Hz") ;
+  Serial.print ("SysClock frequency: ") ;
+  Serial.print (HAL_RCC_GetSysClockFreq ()) ;
+  Serial.println (" Hz") ;
+  Serial.print ("FDCAN Clock: ") ;
+  Serial.print (fdcanClock ()) ;
+  Serial.println (" Hz") ;
+
+  ACANFD_STM32_Settings settings (500 * 1000, DataBitRateFactor::x2) ;
+  settings.mModuleMode = ACANFD_STM32_Settings::INTERNAL_LOOP_BACK ;
+
+  Serial.print ("Bit Rate prescaler: ") ;
+  Serial.println (settings.mBitRatePrescaler) ;
+  Serial.print ("Arbitration Phase segment 1: ") ;
+  Serial.println (settings.mArbitrationPhaseSegment1) ;
+  Serial.print ("Arbitration Phase segment 2: ") ;
+  Serial.println (settings.mArbitrationPhaseSegment2) ;
+  Serial.print ("Arbitration SJW: ") ;
+  Serial.println (settings.mArbitrationSJW) ;
+  Serial.print ("Actual Arbitration Bit Rate: ") ;
+  Serial.print (settings.actualArbitrationBitRate ()) ;
+  Serial.println (" bit/s") ;
+  Serial.print ("Arbitration sample point: ") ;
+  Serial.print (settings.arbitrationSamplePointFromBitStart ()) ;
+  Serial.println ("%") ;
+  Serial.print ("Exact Arbitration Bit Rate ? ") ;
+  Serial.println (settings.exactArbitrationBitRate () ? "yes" : "no") ;
+  Serial.print ("Data Phase segment 1: ") ;
+  Serial.println (settings.mDataPhaseSegment1) ;
+  Serial.print ("Data Phase segment 2: ") ;
+  Serial.println (settings.mDataPhaseSegment2) ;
+  Serial.print ("Data SJW: ") ;
+  Serial.println (settings.mDataSJW) ;
+  Serial.print ("Actual Data Bit Rate: ") ;
+  Serial.print (settings.actualDataBitRate ()) ;
+  Serial.println (" bit/s") ;
+  Serial.print ("Data sample point: ") ;
+  Serial.print (settings.dataSamplePointFromBitStart ()) ;
+  Serial.println ("%") ;
+  Serial.print ("Exact Data Bit Rate ? ") ;
+  Serial.println (settings.exactDataBitRate () ? "yes" : "no") ;
+
+//--- beginFD is called without any receive filter, all sent frames are received
+//    by receiveFD0 throught receiveFIFO0
+  uint32_t errorCode = fdcan1.beginFD (settings) ;
+  if (0 == errorCode) {
+    Serial.println ("fdcan1 configuration ok") ;
+  }else{
+    Serial.print ("Error fdcan1: 0x") ;
+    Serial.println (errorCode, HEX) ;
+  }
+
+
+
+
+  pinMode(PC6,OUTPUT);
+  digitalWrite(PC6, HIGH);
 
   pinMode(M_OC,OUTPUT);
   digitalWrite(M_OC,LOW);
@@ -86,14 +159,14 @@ void setup() {
 
   // velocity loop PID
   motor.PID_velocity.P = 0.1;
-  motor.PID_velocity.I = 1.0;
+  motor.PID_velocity.I = 0.5;
   motor.LPF_velocity.Tf = 0.007;
 
   motor.PID_velocity.output_ramp = 100;
   
   // angle loop PID
   // motor.P_angle.P = 100.0;
-  motor.P_angle.P = 10.0;
+  motor.P_angle.P = 20.0;
   motor.LPF_angle.Tf = 0.005;
 
    // foc current control parameters (Arduino UNO/Mega)
@@ -106,9 +179,9 @@ void setup() {
   motor.LPF_current_d.Tf = 0.005;
   
     // Limits 
-  motor.velocity_limit = 50.0; 
+  motor.velocity_limit = 20.0; 
   motor.voltage_limit = 23.0;   // 12 Volt limit 
-  motor.current_limit = 14.0;    // 2 Amp current limit
+  motor.current_limit = 20.0;    // 2 Amp current limit
 
 
   // use monitoring with serial
@@ -158,6 +231,10 @@ void setup() {
 
 }
 
+static uint32_t gSendDate = 0 ;
+static uint32_t gSentCount1 = 0 ;
+static uint32_t gReceivedCount1 = 0 ;
+
 void loop() {
   // main FOC algorithm function
   motor.loopFOC();
@@ -178,4 +255,37 @@ void loop() {
     // Serial.println("");
     // time_ms = millis();
     // }
+
+//     if (gSendDate < millis ()) {
+//     gSendDate += 1000 ;
+//     // digitalWrite (LED_BUILTIN, !digitalRead (LED_BUILTIN)) ;
+//     CANFDMessage message ;
+//     message.id = 0x7FF ;
+//     message.len = 8 ;
+//     message.data [0] = 0 ;
+//     message.data [1] = 1 ;
+//     message.data [2] = 2 ;
+//     message.data [3] = 3 ;
+//     message.data [4] = 4 ;
+//     message.data [5] = 5 ;
+//     message.data [6] = 6 ;
+//     message.data [7] = 7 ;
+// //--- tryToSendReturnStatusFD returns 0 if message has been successfully
+// //    appended in transmit buffer.
+// //  A not zero returned value contains an error code (see doc)
+//     uint32_t sendStatus = fdcan1.tryToSendReturnStatusFD (message) ;
+//     if (sendStatus == 0) {
+//       gSentCount1 += 1 ;
+//       Serial.print ("fdcan1 sent: ") ;
+//       Serial.println (gSentCount1) ;
+//     }
+
+//   }
+//   CANFDMessage messageFD ;
+//   if (fdcan1.receiveFD0 (messageFD)) {
+//     gReceivedCount1 += 1 ;
+//     Serial.print ("fdcan1 received: ") ;
+//     Serial.println (gReceivedCount1) ;
+//   }
+
 }

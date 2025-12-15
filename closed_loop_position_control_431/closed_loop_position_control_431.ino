@@ -1,15 +1,16 @@
 #include <SimpleFOC.h>
 #include <SimpleFOCDrivers.h>
 #include <encoders/mt6826/MagneticSensorMT6826.h>
+#include "STM32_CAN.h"
 
 #define   EN_GATE PB4
-#define   M_PWM PB6
+#define   M_PWM PB9 //b9
 #define   M_OC PC11
 #define   OC_ADJ PA15
 #define   IOUTA A0
 #define   IOUTB A1
 #define   IOUTC A2
-#define   OC_GAIN PB5
+#define   OC_GAIN PB7 //b7
 
 MagneticSensorMT6826 sensorMag = MagneticSensorMT6826(4);
 
@@ -43,6 +44,8 @@ long time_ms = 0;
   HardwareTimer* timer = new HardwareTimer(TIM3);
 
 void setup() {
+  pinMode(PC6,OUTPUT);
+  digitalWrite(PC6, HIGH);
 
   pinMode(M_OC,OUTPUT);
   digitalWrite(M_OC,LOW);
@@ -93,7 +96,7 @@ void setup() {
   
   // angle loop PID
   // motor.P_angle.P = 100.0;
-  motor.P_angle.P = 10.0;
+  motor.P_angle.P = 20.0;
   motor.LPF_angle.Tf = 0.005;
 
    // foc current control parameters (Arduino UNO/Mega)
@@ -108,7 +111,7 @@ void setup() {
     // Limits 
   motor.velocity_limit = 50.0; 
   motor.voltage_limit = 23.0;   // 12 Volt limit 
-  motor.current_limit = 14.0;    // 2 Amp current limit
+  motor.current_limit = 10.0;    // 2 Amp current limit
 
 
   // use monitoring with serial
